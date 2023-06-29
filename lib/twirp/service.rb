@@ -119,32 +119,46 @@ module Twirp
 
       content_type = rack_request.get_header("CONTENT_TYPE")
       if !Encoding.valid_content_type?(content_type)
-        return route_err(:bad_route, "Unexpected Content-Type: #{content_type.inspect}. Content-Type header must be one of #{Encoding.valid_content_types.inspect}", rack_request)
+        return route_err(
+          :bad_route,
+          "Unexpected Content-Type: #{content_type.inspect}. Content-Type header must be one of #{Encoding.valid_content_types.inspect}",
+          rack_request
+        )
       end
+
       env[:content_type] = content_type
 
       path_parts = rack_request.path.split("/")
       if path_parts.size < 3 || path_parts[-2] != self.full_name
         return route_err(:bad_route, "Invalid route. Expected format: POST {BaseURL}/#{self.full_name}/{Method}", rack_request)
       end
+
       method_name = path_parts[-1]
 
       base_env = self.class.rpcs[method_name]
       if !base_env
         return route_err(:bad_route, "Invalid rpc method #{method_name.inspect}", rack_request)
       end
-      env.merge!(base_env) # :rpc_method, :input_class, :output_class
+      # :rpc_method, :input_class, :output_class
+      env.merge!(base_env)
 
       input = nil
       begin
         body_str = rack_request.body.read
-        rack_request.body.rewind # allow other middleware to read again (https://github.com/arthurnn/twirp-ruby/issues/50)
+
+        # allow other middleware to read again (https://github.com/arthurnn/twirp-ruby/issues/50)
+        # warning - does not work with rack 3
+        if rack_request.body.rewind.respond_to?(:rewind)
+          rack_request.body.rewind
+        end
+
         input = Encoding.decode(body_str, env[:input_class], content_type)
       rescue => e
         error_msg = "Invalid request body for rpc method #{method_name.inspect} with Content-Type=#{content_type}"
         if e.is_a?(Google::Protobuf::ParseError)
           error_msg += ": #{e.message.strip}"
         end
+
         return route_err(:malformed, error_msg, rack_request)
       end
 
