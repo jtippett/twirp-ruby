@@ -148,7 +148,7 @@ module Twirp
 
         # allow other middleware to read again (https://github.com/arthurnn/twirp-ruby/issues/50)
         # warning - does not work with rack 3
-        if rack_request.body.rewind.respond_to?(:rewind)
+        if rack_request.body.respond_to?(:rewind)
           rack_request.body.rewind
         end
 
